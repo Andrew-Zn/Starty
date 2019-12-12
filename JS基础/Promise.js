@@ -1,137 +1,151 @@
-
-
-//Promies特点
-//“promise” is an object or function with a then method whose behavior conforms to this specification.
-//“thenable” is an object or function that defines a then method
-//“value” is any legal JavaScript value (including undefined, a thenable, or a promise).
-//“exception” is a value that is thrown using the throw statement.
-//“reason” is a value that indicates why a promise was rejected.
 const PENDING = 'PENDING'
 const FULFILLED = 'FUFILLED'
 const REJECTED = 'REJECTED'
-const resolevPromise = (promise2, x, resolev, rejected) => {
-  if(promise2 === x) {
-    throw new Error('Promise err ')//这写的不对 要return 到reject 
+function resolvePromise(promise2, x, resolve, rejected) {
+  if (promise2 === x) {
+    return rejected(new TypeError('TypeError: Chaining cycle detected for promise #<Promise>'));
   }
-  if((typeof x === 'object' && x !== null ) || typeof x === 'function') {
-    let called = false
+  let called 
+  if ((typeof x === 'object' && x !== null) || typeof x === 'function') {
     try {
-      let then = x.then 
-      if(typeof then === 'function') {
+      let then = x.then
+      if (typeof then === 'function') {
         try {
-          then.call(x,(y) =>{
-            if (called) return 
-            called = true 
-            resolevPromise(promise2,y,resolev,rejected)
-          },(r)=>{
-            if (called) return 
-            called = true 
+          then.call(x, (y) => {
+            if (called) return
+            called = true
+            resolvePromise(promise2, y, resolve, rejected)
+          }, (r) => {
+            if (called) return
+            called = true
             rejected(r)
           })
-        } catch(e ) {
-          if (called) return 
-          called = true 
-          rejected(e)
+        } catch (err) {
+          if (called) return
+          called = true
+          rejected(err)
         }
+      } else {
+        resolve(x)
       }
-    } catch(e) {
-      rejected(e)
+    } catch (err) {
+      if (called) return
+      called = true
+      rejected(err)
     }
   } else {
-    resolev(x)
+    resolve(x)
   }
 }
-class Promise  {
+class Promise {
   constructor(execute) {
     this.value = undefined
     this.reason = undefined
-    this.state = PENDING 
+    this.state = PENDING
     this.onFulfiledAry = []
     this.onRejectedAry = []
-    let resolev = (data) =>{
-      if(this.state === PENDING) {
+    let resolve = (data) => {
+      if (this.state === PENDING) {
         this.value = data
         this.state = FULFILLED
         this.onFulfiledAry.forEach(ele => ele())
       }
     }
-    let rejected = (data) =>{
-      if(this.state === PENDING) {
-        this.reason = data 
+    let rejected = (data) => {
+      if (this.state === PENDING) {
+        this.reason = data
         this.state = REJECTED
         this.onRejectedAry.forEach(ele => ele())
       }
     }
     try {
-      execute(resolev, rejected);
-    } catch(e) {
+      execute(resolve, rejected);
+    } catch (e) {
       rejected(e)
     }
-    
   }
   then(onFulfiled, onRejected) {
-    let promise2 = new Promise((resolev, rejected) =>{
-      if(this.state === FULFILLED) {
-        try{
-          let x = onFulfiled(this.value)
-          setTimeout(()=>{
-            resolevPromise(promise2,x,resolev,rejected)
-          })
-          
-        } catch (e) {
-          rejected(e)
-        }
-      }
-      if(this.state === REJECTED) {
-        try {
-          let x = onRejected(this.reason)
-          setTimeout(()=>{
-            resolevPromise(promise2,x,resolev,rejected)
-          })
-        } catch(e) {
-          rejected(e)
-        }
-
-      }
-      if(this.state === PENDING) {
-        this.onFulfiledAry.push(() =>{
-          try{
-            onFulfiled(this.value)
-            setTimeout(()=>{
-              resolevPromise(promise2,x,resolev,rejected)
-            })
-          }catch(e) {
-            rejected(e)
+    onFulfiled = typeof onFulfiled === 'function' ? onFulfiled : value => value;
+    onRejected = typeof onRejected === 'function' ? onRejected : err => { throw err }
+    let promise2 = new Promise((resolve, rejected) => {
+      if (this.state === FULFILLED) {
+        setTimeout(() => {
+          try {
+            let x = onFulfiled(this.value)
+            resolvePromise(promise2, x, resolve, rejected)
+          } catch (err) {
+            rejected(err)
           }
-
         })
-        this.onRejectedAry.push(() =>{
-          try{
-            onRejected(this.reason)
-            setTimeout(()=>{
-              resolevPromise(promise2,x,resolev,rejected)
-            })
-          }catch(e) {
-            rejected(e)
+      }
+      if (this.state === REJECTED) {
+        setTimeout(() => {
+          try {
+            let x = onRejected(this.reason)
+            resolvePromise(promise2, x, resolve, rejected)
+          } catch (err) {
+            rejected(err)
           }
-
+        })
+      }
+      if (this.state === PENDING) {
+        this.onFulfiledAry.push(() => {
+          setTimeout(() => {
+            try {
+              let x = onFulfiled(this.value)
+              resolvePromise(promise2, x, resolve, rejected)
+            } catch (err) {
+              rejected(err)
+            }
+          })
+        })
+        this.onRejectedAry.push(() => {
+          setTimeout(() => {
+            try {
+              let x = onRejected(this.reason)
+              resolvePromise(promise2, x, resolve, rejected)
+            } catch (err) {
+              rejected(err)
+            }
+          })
         })
       }
     })
-    return promise2 
+    return promise2
   }
-} 
-let p  = new Promise((resolev,rejected) =>{
-  setTimeout(() =>{
-    resolev('success')
+}
+// let p  = new Promise((resolev,rejected) =>{
+//   setTimeout(() =>{
+//     resolev('success')
+//   })
+
+// }) 
+// p.then(null, (err) =>{
+//   console.log("err")
+// }).then(data =>{
+//   console.log("@@@@@@")
+//   console.log(data)
+// })
+// p.then().then((data) =>{
+//   console.log(data)
+// }).then(false,(err) =>{
+//   console.log(err)
+// })
+
+Promise.deferred = function () {
+  let dfd = {}
+  dfd.promise = new Promise((resolve, reject) => {
+    dfd.resolve = resolve;
+    dfd.reject = reject;
   })
-  
-}) 
-p.then((data) =>{
-  console.log(data)
-}, (err) =>{
-  console.log("err")
-})
-p.then(data =>{
-  console.log(data)
-})
+  return dfd;
+}
+
+module.exports = Promise;
+//判断resole的是promies
+//catch 实际是一个then（null，（） =>{}） 语法糖
+// 实现一饿promise.finally  
+//Promise.try 
+//promise.race 
+// 如何终止一个promise ，不要当前这个promise结果
+//如果中断promise链
